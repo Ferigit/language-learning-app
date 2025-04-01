@@ -3,55 +3,42 @@ const express = require('express');
 const sequelize = require('./config/database');
 // const { User } = require('./models');
 const routes = require('./routes');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const AppError = require('./utils/appError');
+const morgan = require('morgan');
 
 const app = express();
 
 // Middleware
+app.use(helmet());
 app.use(express.json());
 
+const limiter = rateLimit({
+  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  message: 'Too many requests from this IP, please try again later.'
+});
 
-// Test Route
-// app.get('/', (req, res) => {
-//     res.send('Language Learning API');
-// });
+app.use('/api', limiter);
 
-// Add test user route
-// app.post('/api/test-user', async (req, res) => {
-//     try {
-//         const user = await User.create(req.body, {
-//             validate: true,
-//             returning: true,
-//             individualHooks: true
-//         }).catch(error => {
-//             console.error('Validation errors:', JSON.stringify(error.errors, null, 2));
-//             throw error;
-//         });
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+}
 
-//         res.status(201).json(user);
-//     } catch (error) {
-//         res.status(400).json({
-//             status: 'fail',
-//             message: error.message,
-//             errors: error.errors?.map(e => ({
-//                 path: e.path,
-//                 message: e.message,
-//                 value: e.value
-//             }))
-//         });
-//     }
-// });
 
 app.use('/', routes);
 
-// Add error handling middleware at the end:
+// Global error handling middleware
 app.use((err, req, res, next) => {
-    err.statusCode = err.statusCode || 500;
-    err.status = err.status || 'error';
+  console.error('ERROR 💥', err);
+  err.statusCode = err.statusCode || 500;
+  err.status = err.status || 'error';
 
-    res.status(err.statusCode).json({
-        status: err.status,
-        message: err.message,
-    });
+  res.status(err.statusCode).json({
+    status: err.status,
+    message: err.message,
+  });
 });
 
 // Start Server
